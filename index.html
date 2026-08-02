@@ -1,0 +1,160 @@
+<!--
+  Страница финансов для Telegram Mini App.
+
+  Лежит на GitHub Pages, а не в Apps Script: Apps Script показывает
+  свои страницы во вложенном фрейме, и подпись Telegram туда не доходит —
+  проверено 2 августа, страница написала «работает только внутри Telegram».
+
+  Данных здесь нет. Она запрашивает их у Apps Script и получает, только
+  если Telegram подтвердил, что открыл хозяин бота. Репозиторий можно
+  держать открытым: смотреть в нём нечего.
+-->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Финансы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg:     var(--tg-theme-bg-color, #17212B);
+    --card:   var(--tg-theme-secondary-bg-color, #232E3C);
+    --ink:    var(--tg-theme-text-color, #F5F5F5);
+    --ink-2:  var(--tg-theme-hint-color, #7D8B99);
+    --accent: var(--tg-theme-link-color, #6AB3F3);
+    --line:   rgba(127,143,159,.22);
+    --crit:   #E8736B;
+    --warn:   #E3A857;
+    --good:   #56BC8A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 14px 12px 34px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .shapka { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .shapka h1 { font-size: 19px; font-weight: 600; margin: 0; }
+  .shapka .kogda { font-size: 12px; color: var(--ink-2); }
+
+  .razdel { margin-bottom: 18px; }
+  .razdel > h2 {
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-2); font-weight: 600; margin: 0 0 7px 4px;
+  }
+  .karta { background: var(--card); border-radius: 13px; overflow: hidden; }
+
+  .stroka {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line);
+  }
+  .stroka:last-child { border-bottom: none; }
+  .stroka .podpis { min-width: 0; }
+  .stroka .podpis small { display: block; color: var(--ink-2); font-size: 12.5px; }
+  .stroka .value { font-weight: 600; white-space: nowrap; }
+
+  .stroka.srochno  { border-left: 3px solid var(--crit); }
+  .stroka.vnimanie { border-left: 3px solid var(--warn); }
+  .stroka.horosho  { border-left: 3px solid var(--good); }
+  .stroka.srochno .value  { color: var(--crit); }
+  .stroka.vnimanie .value { color: var(--warn); }
+  .stroka.horosho .value  { color: var(--good); }
+
+  .stroka.glavnoe { padding: 16px 14px; }
+  .stroka.glavnoe .value { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+
+  .soobshchenie { text-align: center; color: var(--ink-2); padding: 40px 20px; font-size: 14px; line-height: 1.6; }
+  .soobshchenie b { color: var(--ink); display: block; margin-bottom: 6px; }
+
+  .obnovit {
+    display: block; width: 100%; margin-top: 6px; padding: 12px;
+    border: none; border-radius: 11px; background: var(--card);
+    color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .obnovit:active { opacity: .6; }
+  .obnovit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .razdel { animation: vsplyt .28s ease both; }
+    @keyframes vsplyt { from { opacity: 0; transform: translateY(6px); } }
+  }
+</style>
+</head>
+<body>
+
+<div id="ekran"><div class="soobshchenie">Загружаю…</div></div>
+
+<script>
+  // Адрес моста к таблицам. Не секрет: без подписи Telegram он ничего не отдаёт.
+  var ADRES = 'https://script.google.com/macros/s/AKfycbxTi5DF8amxdD6B_a0sjl7G0KnhoMO3sWo6u0ODs2Uqi90kiQjyqlIRdbeBaw2SVSE/exec';
+
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  function ekranirovat(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function pokazat(d) {
+    var h = '<div class="shapka"><h1>Финансы</h1><div class="kogda">' +
+            ekranirovat(d.obnovleno) + '</div></div>';
+
+    d.razdely.forEach(function (r) {
+      h += '<div class="razdel"><h2>' + ekranirovat(r.nazvanie) + '</h2><div class="karta">';
+      r.stroki.forEach(function (s) {
+        var klass = 'stroka' + (s.pometka ? ' ' + ekranirovat(s.pometka) : '');
+        var chasti = s.podpis.split(' — ');
+        var podpis = ekranirovat(chasti[0]);
+        if (chasti.length > 1) podpis += '<small>' + ekranirovat(chasti.slice(1).join(' — ')) + '</small>';
+        h += '<div class="' + klass + '"><div class="podpis">' + podpis + '</div>' +
+             '<div class="value num">' + ekranirovat(s.value) + '</div></div>';
+      });
+      h += '</div></div>';
+    });
+
+    h += '<button class="obnovit" id="knopka">Обновить</button>';
+    document.getElementById('ekran').innerHTML = h;
+    document.getElementById('knopka').addEventListener('click', zagruzit);
+  }
+
+  function oshibka(text) {
+    document.getElementById('ekran').innerHTML =
+      '<div class="soobshchenie"><b>Не открылось</b>' + ekranirovat(text) + '</div>' +
+      '<button class="obnovit" id="knopka">Попробовать ещё раз</button>';
+    document.getElementById('knopka').addEventListener('click', zagruzit);
+  }
+
+  function zagruzit() {
+    document.getElementById('ekran').innerHTML = '<div class="soobshchenie">Загружаю…</div>';
+
+    if (!tg || !tg.initData) {
+      oshibka('Страница работает только внутри Telegram — открой её кнопкой в боте.');
+      return;
+    }
+
+    fetch(ADRES, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'finansyData', initData: tg.initData })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (o) {
+        if (!o.ok) { oshibka(o.error || 'сервер отказал'); return; }
+        pokazat(o.dannye);
+      })
+      .catch(function (e) { oshibka('нет связи с таблицей: ' + e.message); });
+  }
+
+  zagruzit();
+</script>
+
+</body>
+</html>
