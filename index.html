@@ -125,18 +125,41 @@
     document.getElementById('knopka').addEventListener('click', zagruzit);
   }
 
-  function oshibka(text) {
-    document.getElementById('ekran').innerHTML =
-      '<div class="soobshchenie"><b>Не открылось</b>' + ekranirovat(text) + '</div>' +
-      '<button class="obnovit" id="knopka">Попробовать ещё раз</button>';
+  function oshibka(text, spravka) {
+    var h = '<div class="soobshchenie"><b>Не открылось</b>' + ekranirovat(text) + '</div>';
+    if (spravka) {
+      h += '<div class="karta" style="margin-bottom:10px">';
+      for (var k in spravka) {
+        h += '<div class="stroka"><div class="podpis">' + ekranirovat(k) + '</div>' +
+             '<div class="value" style="font-weight:500;font-size:13px">' +
+             ekranirovat(spravka[k]) + '</div></div>';
+      }
+      h += '</div>';
+    }
+    h += '<button class="obnovit" id="knopka">Попробовать ещё раз</button>';
+    document.getElementById('ekran').innerHTML = h;
     document.getElementById('knopka').addEventListener('click', zagruzit);
   }
 
   function zagruzit() {
     document.getElementById('ekran').innerHTML = '<div class="soobshchenie">Загружаю…</div>';
 
+    // Если подписи нет — показываем, чего именно не хватает.
+    // Иначе непонятно, то ли Telegram её не передал, то ли не загрузился скрипт.
     if (!tg || !tg.initData) {
-      oshibka('Страница работает только внутри Telegram — открой её кнопкой в боте.');
+      var hash = String(window.location.hash || '');
+      oshibka('Telegram не передал подпись. Вот что видно со стороны страницы:', {
+        'window.Telegram': (window.Telegram ? 'есть' : 'НЕТ — скрипт не загрузился'),
+        'WebApp': (tg ? 'есть' : 'нет'),
+        'initData': (tg ? '«' + String(tg.initData) + '»' : '—'),
+        'платформа': (tg && tg.platform) ? tg.platform : '—',
+        'версия': (tg && tg.version) ? tg.version : '—',
+        'user': (tg && tg.initDataUnsafe && tg.initDataUnsafe.user)
+                  ? ('id ' + tg.initDataUnsafe.user.id) : 'нет',
+        'в адресе': hash ? (hash.length + ' симв., ' + hash.slice(0, 24) + '…') : 'пусто',
+        'фрейм': (window.top === window.self) ? 'своё окно' : 'вложенный',
+        'адрес': window.location.host
+      });
       return;
     }
 
